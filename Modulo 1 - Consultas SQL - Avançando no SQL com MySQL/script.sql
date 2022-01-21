@@ -131,7 +131,6 @@ FROM tabela_de_produtos;
 
 -- Veja o ano de nascimento dos clientes e classifique-os como: Nascidos antes de 1990 são velhos, 
 -- nascidos entre 1990 e 1995 são jovens e nascidos depois de 1995 são crianças. Liste o nome do cliente e esta classificação.
-
 SELECT NOME, DATA_DE_NASCIMENTO,
 CASE
 	WHEN YEAR(DATA_DE_NASCIMENTO) < 1990 THEN 'VELHO'
@@ -139,3 +138,100 @@ CASE
     ELSE 'CRIANÇA'
 END AS CLASSIFICAR_IDADE
 FROM tabela_de_clientes;
+
+-- Unir tabelas vendedores e notas fiscais utilizando a matrícula como campo em comum
+SELECT * FROM tabela_de_vendedores A
+INNER JOIN notas_fiscais B
+ON A.MATRICULA = B.MATRICULA;
+
+-- Contar a quantidade de notas fiscais emitidas por vendedor
+SELECT A.MATRICULA, A.NOME, COUNT(*) AS NOTAS_FISCAIS_EMITIDAS FROM tabela_de_vendedores A
+INNER  JOIN notas_fiscais B
+ON A.MATRICULA = B.MATRICULA
+GROUP BY A.MATRICULA, A.NOME;
+
+-- Obtenha o faturamento anual da empresa. Leve em consideração que o valor financeiro das vendas consiste em multiplicar a quantidade pelo preço.
+SELECT YEAR(DATA_VENDA) as ANO, SUM(QUANTIDADE * PRECO) AS FATURAMENTO
+FROM notas_fiscais NF INNER JOIN itens_notas_fiscais INF 
+ON NF.NUMERO = INF.NUMERO
+GROUP BY YEAR(DATA_VENDA);
+
+-- Filtrar clientes que nunca fizeram nenhuma compra
+SELECT DISTINCT A.CPF, A.NOME, B.CPF FROM tabela_de_clientes A
+LEFT JOIN notas_fiscais B
+ON A.CPF = B.CPF
+WHERE B.CPF IS NULL;
+
+-- Unir duas tabelas exibindo inclusive registros repetidos
+SELECT DISTINCT BAIRRO, NOME, 'CLIENTE' AS TIPO FROM tabela_de_clientes
+UNION
+SELECT DISTINCT BAIRRO, NOME, 'VENDEDOR' AS TIPO FROM tabela_de_vendedores;
+
+-- Sub consulta: consultar clientes em que há escritórios no mesmo bairro
+SELECT * FROM tabela_de_clientes
+WHERE BAIRRO IN (SELECT DISTINCT BAIRRO FROM tabela_de_vendedores);
+
+-- Sub consulta: Quais são as embalagens cujo o maior preço é maior ou igual a R$10,00?
+SELECT X.EMBALAGEM, X.PRECO_MAXIMO FROM 
+(SELECT EMBALAGEM, MAX(PRECO_DE_LISTA) AS PRECO_MAXIMO FROM tabela_de_produtos
+GROUP BY EMBALAGEM) X
+WHERE X.PRECO_MAXIMO >= 10;	
+
+-- Retornar nome e cpf do cliente no mesmo campo utilizando função
+SELECT CONCAT(NOME, ' (' , CPF, ') ' ) AS RESULTADO FROM tabela_de_clientes;
+
+-- Faça uma consulta listando o nome do cliente e o endereço completo 
+-- (Com rua, bairro, cidade e estado).
+SELECT NOME, CONCAT(ENDERECO_1,', ',BAIRRO,', ',CIDADE,' - ',ESTADO) AS 'ENDEREÇO COMPLETO' FROM tabela_de_clientes;
+
+-- Retornar o dia, mês e ano da data da venda utilizando função 
+SELECT DISTINCT DATA_VENDA, DAYNAME(DATA_VENDA) AS DIA, 
+MONTHNAME(DATA_VENDA) AS MÊS, YEAR(DATA_VENDA) AS ANO FROM notas_fiscais;
+
+-- Crie uma consulta que mostre o nome e a idade atual dos clientes.
+SELECT NOME, TIMESTAMPDIFF(YEAR,DATA_DE_NASCIMENTO,CURDATE()) AS 'IDADE' FROM tabela_de_clientes;
+
+-- Na tabela de notas fiscais temos o valor do imposto. Já na tabela de itens temos a 
+-- quantidade e o faturamento. Calcule o valor do imposto pago no ano de 2016 
+-- arredondando para o menor inteiro.
+SELECT YEAR(DATA_VENDA) AS ANO, FLOOR(SUM(IMPOSTO * (QUANTIDADE * PRECO))) AS IMPOSTO
+FROM notas_fiscais NF
+INNER JOIN itens_notas_fiscais INF ON NF.NUMERO = INF.NUMERO
+WHERE YEAR(DATA_VENDA) = 2016
+GROUP BY YEAR(DATA_VENDA);
+
+-- * Queremos construir um SQL cujo resultado seja, para cada cliente:
+-- “O cliente João da Silva faturou 120000 no ano de 2016”.
+-- Somente para o ano de 2016. 
+SELECT CONCAT('O cliente ', TC.NOME, ' faturou ', 
+CAST(SUM(INF.QUANTIDADE * INF.preco) AS char (20))
+ , ' no ano ', CAST(YEAR(NF.DATA_VENDA) AS char (20))) AS SENTENCA FROM notas_fiscais NF
+INNER JOIN itens_notas_fiscais INF ON NF.NUMERO = INF.NUMERO
+INNER JOIN tabela_de_clientes TC ON NF.CPF = TC.CPF
+WHERE YEAR(DATA_VENDA) = 2016
+GROUP BY TC.NOME, YEAR(DATA_VENDA);
+
+-- RELATÓRIOS
+
+-- Consulta com vendas de clientes por mês
+SELECT NF.CPF, DATE_FORMAT(NF.DATA_VENDA, '%Y-%m') AS MES_ANO, SUM(INF.QUANTIDADE) AS QUANTIDADE_VENDAS FROM itens_notas_fiscais INF
+INNER JOIN notas_fiscais NF
+ON INF.NUMERO = NF.NUMERO
+GROUP BY NF.CPF, DATE_FORMAT(NF.DATA_VENDA, '%Y-%m');
+
+-- Limite de compra por cliente
+SELECT TC.CPF, TC.NOME, TC.VOLUME_DE_COMPRA AS QUANTIDADE_LIMITE FROM tabela_de_clientes TC;
+
+-- Relatório de vendas válidas
+SELECT X.CPF, X.NOME, X.MES_ANO, X.QUANTIDADE_VENDAS, X.QUANTIDADE_LIMITE,
+CASE WHEN (X.QUANTIDADE_LIMITE - X.QUANTIDADE_VENDAS) < 0 THEN 'INVÁLIDA'
+ELSE 'VÁLIDA' END AS STATUS_VENDA
+FROM (
+SELECT NF.CPF, TC.NOME, DATE_FORMAT(NF.DATA_VENDA, '%Y-%m') AS MES_ANO
+, SUM(INF.QUANTIDADE) AS QUANTIDADE_VENDAS 
+, MAX(TC.VOLUME_DE_COMPRA) AS QUANTIDADE_LIMITE FROM NOTAS_FISCAIS NF
+INNER JOIN ITENS_NOTAS_FISCAIS INF
+ON NF.NUMERO = INF.NUMERO
+INNER JOIN TABELA_DE_CLIENTES TC 
+ON TC.CPF = NF.CPF
+GROUP BY NF.CPF, TC.NOME, DATE_FORMAT(NF.DATA_VENDA, '%Y-%m')) X;
