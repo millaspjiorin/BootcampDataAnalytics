@@ -35,3 +35,5 @@ Repositório criado para armazenar os códigos criados durante o Bootcamp de Dat
 🚀 Módulo 6 - Power Skills
 
 🚀 Módulo 7 - Projeto Final
+  1. Time Carmen Portinho: Análise das eleições norte americanas através de tweets Biden vs Trump
+  2. Apresentação: https://www.youtube.com/watch?v=ysVuYEkM8jI
